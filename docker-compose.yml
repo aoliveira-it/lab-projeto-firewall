@@ -1,0 +1,46 @@
+services: # Definição dos serviços (containers) deste projeto
+  fw: # Container de firewall que roteia entre as duas redes
+    build: ./firewall # Constrói a imagem usando o Dockerfile no diretório ./firewall
+    container_name: fw # Nome fixo do container para facilitar comandos (docker exec, logs etc.)
+    cap_add: # Capacidades extras concedidas ao container
+      - NET_ADMIN # Necessário para manipular iptables e interfaces de rede dentro do container
+    sysctls: # Parâmetros de kernel aplicados no container
+      net.ipv4.ip_forward: "1" # Habilita roteamento IP (permite encaminhar pacotes entre interfaces)
+    ports: # Publicação de portas do host -> container
+      - "8080:8080" # Mapeia porta 8080 do host para 8080 do fw (acesso via http://localhost:8080)
+    networks: # Conexões de rede do container
+      net_a: # Conecta na rede net_a (lado do cliente)
+        ipv4_address: 172.30.0.2 # IP fixo do fw na net_a
+      net_b: # Conecta na rede net_b (lado do servidor)
+        ipv4_address: 172.31.0.2 # IP fixo do fw na net_b
+
+  server: # Servidor HTTP simples que ficará na rede net_b
+    build: ./server # Constrói imagem a partir de ./server (Python HTTP na porta 8080)
+    container_name: server # Nome fixo do container do servidor
+    networks: # Redes onde o servidor está conectado
+      net_b: # Apenas na rede do servidor
+        ipv4_address: 172.31.0.10 # IP fixo do servidor na net_b
+    depends_on: # Define ordem de inicialização (server após o fw)
+      - fw # Garante que o fw suba antes (não bloqueia se falhar depois)
+
+  client: # Cliente para testes (curl) na rede net_a
+    image: curlimages/curl:8.9.1 # Usa imagem leve com curl pré-instalado
+    container_name: client # Nome fixo do container do cliente
+    command: ["sleep", "infinity"] # Mantém o container rodando para execuções interativas (docker exec)
+    networks: # Redes para o cliente
+      net_a: # Apenas na rede do cliente
+        ipv4_address: 172.30.0.10 # IP fixo do cliente na net_a
+    depends_on: # Sobe após o fw para testes de roteamento
+      - fw # Dependência do firewall
+
+networks: # Definição das redes Docker usadas pelos serviços
+  net_a: # Rede da "LAN A" (cliente)
+    driver: bridge # Driver bridge padrão do Docker (rede isolada em nível 2/3)
+    ipam: # Configuração de endereçamento IP
+      config: # Lista de blocos de sub-rede para esta rede
+        - subnet: 172.30.0.0/24 # Bloco IPv4 da net_a (fw=172.30.0.2, client=172.30.0.10)
+  net_b: # Rede da "LAN B" (servidor)
+    driver: bridge # Driver bridge para a segunda rede
+    ipam: # Gestão de endereços IP para a net_b
+      config: # Lista de sub-redes
+        - subnet: 172.31.0.0/24 # Bloco IPv4 da net_b (fw=172.31.0.2, server=172.31.0.10)

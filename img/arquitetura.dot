@@ -1,0 +1,28 @@
+digraph firewall_lab_min {
+    rankdir=LR;
+    node [shape=box, style=filled, fillcolor=white, fontname="Helvetica"];
+    edge [fontname="Helvetica"];
+
+    subgraph cluster_a {
+        label = "net_a (172.30.0.0/24)";
+        style=filled; color=lightyellow;
+        fw_a [label="fw\n172.30.0.2", fillcolor=lightgray, style="filled,bold"];
+        client [label="client\n172.30.0.10"];
+    }
+
+    subgraph cluster_b {
+        label = "net_b (172.31.0.0/24)";
+        style=filled; color=lightgreen;
+        fw_b [label="fw\n172.31.0.2", fillcolor=lightgray, style="filled,bold"];
+        server [label="server (HTTP :8080)\n172.31.0.10"];
+    }
+
+    // Fluxos
+    client -> fw_a [label="HTTP :8080"];
+    fw_a -> fw_b [label="DNAT"];
+    fw_b -> server [label=":8080"];
+
+    // Nota
+    note [shape=note, fillcolor="#fef3c7", label="DNAT fw: 8080 -> 172.31.0.10:8080\nFORWARD permitido p/:8080\nPOSTROUTING MASQUERADE"];
+    fw_a -> note [style=dashed, arrowhead=none];
+}
